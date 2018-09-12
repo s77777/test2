@@ -60,6 +60,11 @@ class FileUpload extends Page {
 
     function  translit($fname)
     {
+        if(!preg_match ("/[А-Яа-я]/u", $fname)) {
+            $fname=iconv('cp866','UTF-8//IGNORE',
+                    iconv('cp437', 'cp865//IGNORE',
+                     iconv('UTF-8', 'cp437//IGNORE',$fname)));
+        }
         $translit=['а'=>'a','б'=>'b','в'=>'v','г'=>'g','д'=>'d','е'=>'e','ё'=>'e','ж'=>'j','з'=>'z','и'=>'i','й'=>'y','к'=>'k','л'=>'l',
                     'м'=>'m','н'=>'n','о'=>'o','п'=>'p','р'=>'r','с'=>'s','т'=>'t','у'=>'u','ф'=>'f','х'=>'h','ц'=>'c',
                     'ч'=>'ch','ш'=>'sh','щ'=>'shch','ы'=>'y','э'=>'e','ю'=>'yu','я'=>'ya','ъ'=>'','ь'=>''];
@@ -73,31 +78,39 @@ class FileUpload extends Page {
         $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path,RecursiveDirectoryIterator::SKIP_DOTS),RecursiveIteratorIterator::SELF_FIRST);
         $zip = new ZipArchive;
         $zip->open(APP_PATH_UPLOAD.$zipfile,ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $lPath=strlen($path);
+        $key=0;
+        $subDir='';
         foreach ($it as $finfo) {
-            $fname = $finfo->getFilename();
             if ($finfo->isDir()) {
-                $d =$finfo->getFilename();
-                $zip->addEmptyDir($d.'/');
-                $subDir=(!empty($d))?$d.'/':'';
+                $Dir=$finfo->getFilename();
+                $subDir.=$Dir.'/';
+                $zip->addEmptyDir($subDir);
             } else {
+                $fname = $finfo->getFilename();
                 if (!empty($subDir)){
                     $zip->addFromString($subDir.$fname,
                         file_get_contents($finfo->getPath().'/'.$fname));
                 } else {
                     $zip->addFile($finfo->getPath().'/'.$fname,$fname);
                 }
-
             }
+            $key++;
         }
         $zip->close();
+        $delDir=[];
         foreach ($it as $finfo) {
             if ($finfo->isFile()) {
-                $fname=$finfo->getFilename();
-                unlink($finfo->getPath().'/'.$fname);
+                unlink($finfo->getPath().'/'.$finfo->getFilename());
+            }
+            if ($finfo->isDir()) {
+                $delDir[]=$finfo->getPath().'/'.$finfo->getFilename();
             }
         }
-        if (!empty($subDir)){rmdir($path.'/'.$subDir);}
-        rmdir($path);
+        arsort($delDir);
+        foreach ($delDir as $dir) {
+              rmdir($dir);
+        }
     }
 }
 
